@@ -1,18 +1,14 @@
 package com.caniplay.caniplay;
 
 import android.Manifest;
-import android.annotation.SuppressLint;
-import android.app.FragmentManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
-import android.os.Build;
 import android.os.Bundle;
-import android.provider.Settings;
-import android.support.annotation.NonNull;
+import android.os.Handler;
+import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
@@ -26,7 +22,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.EditText;
+
 import android.widget.Toast;
 
 import com.android.volley.Request;
@@ -34,98 +30,77 @@ import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.location.LocationServices;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.UnsupportedEncodingException;
-import java.util.logging.Logger;
+
+import static com.caniplay.caniplay.StatusConnection.checkConnection;
+
+
 
 public class MainActivity extends AppCompatActivity
-        implements NavigationView.OnNavigationItemSelectedListener {
-    
+        implements NavigationView.OnNavigationItemSelectedListener  {
+
+private static  int SPLASH_TIME_OUT = 4000;
+    //private String url = "http://10.0.2.2:8080/api/v1";
     private String url = "http://10.0.2.2:8080/api/v1";
     private String href_users = "";
-    private String href_contest = "";
+    private String href_eventos = "";
+    public Boolean userExist = false;
+    public Boolean isLogged = false;
 
+    private static final String LOGTAG = "android-localizacion";
+
+    private static final int PETICION_PERMISO_LOCALIZACION = 101;
+
+    private GoogleApiClient apiClient;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
 
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
+
+        new Handler().postDelayed(new Runnable() {
             @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
+            public void run() {
+                Intent home = new Intent(getApplicationContext(), HomeActivity.class);
+                startActivity(home); // Cambio de aplicación
             }
-        });
+        },SPLASH_TIME_OUT);
 
-        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
-        ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
-                this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
-        drawer.addDrawerListener(toggle);
-        toggle.syncState();
+        setContentView(R.layout.activity_main);
+        cargaMenu();
 
-        NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
-        navigationView.setNavigationItemSelectedListener(this);
-
-        RequestQueue queue = VolleySingleton.getInstance().getmRequestQueue();
-
-        //Llamada al servidor para obtener links y eventos
-        JsonObjectRequest request = new JsonObjectRequest(Request.Method.GET, url, null,
-                new Response.Listener<JSONObject>() {
-                    @Override
-                    public void onResponse(JSONObject response) {
-                        // Check the length of our response (to see if the user has any repos)
-                        if (response.length() > 0) {
-                            // The user does have repos, so let's loop through them all.
-                            for (int i = 0; i < response.length(); i++) {
-                                try {
-                                    JSONObject links = response.getJSONObject("_links");
-
-                                    for (int j = 0; j < links.length(); j++) {
-                                        JSONObject users = links.getJSONObject("users");
-                                        href_users = users.getString("href");
-                                        JSONObject contest = links.getJSONObject("contest");
-                                        href_contest = users.getString("href");
-                                    }
-                                } catch (JSONException e) {
-                                    // If there is an error then output this to the logs.
-                                }
-                            }
-                        } else {
-                            // The user didn't have any repos.
-                            Toast toast2 =
-                                    Toast.makeText(getApplicationContext(),
-                                            "No se han importado datos", Toast.LENGTH_SHORT);
-                            toast2.show();
-                        }
-                    }
-                },
-                new Response.ErrorListener() {
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        // If there a HTTP error then add a note to our repo list.
-                        Toast toast2 =
-                                Toast.makeText(getApplicationContext(),
-                                        "Error en la conexión", Toast.LENGTH_SHORT);
-                        toast2.show();
-
-                        Log.e("Volley", error.toString());
-                    }
+        if (checkConnection()) {
+            if(callServer()){
+                userExist = isUserRegisterd();
+                if (userExist) {
+                    //loginUser();
+                    //cambioCabeceraMenu();
+                    //callServerForEvents(href_eventos);
+                    //callServerForUserActions(href_users);
+                }else{
+                    //callServerForEvents(href_eventos);
                 }
-        );
-        // Add the request to the RequestQueue.
-        queue.add(request);
 
+            }else{
+                Intent LoadScreenError = new Intent(getApplicationContext(), ErrorActivity.class);
+                startActivity(LoadScreenError); // Cambio de aplicación
+
+            }
+        }else{
+            Intent LoadScreenError = new Intent(getApplicationContext(), ErrorActivity.class);
+            startActivity(LoadScreenError); // Cambio de aplicación
+
+
+        }
     }
-
-
 
     @Override
     public void onBackPressed() {
@@ -159,6 +134,19 @@ public class MainActivity extends AppCompatActivity
         return super.onOptionsItemSelected(item);
     }
 
+
+    public void login(View view){
+
+        if(!userExist){
+            Intent newLogin = new Intent(getApplicationContext(), LoginActivity.class);
+            startActivity(newLogin); // Cambio de aplicación
+
+        }else{
+            Intent profile = new Intent(getApplicationContext(), Profile.class);
+            startActivity(profile); // Cambio de aplicación
+        }
+
+    }
     @SuppressWarnings("StatementWithEmptyBody")
     @Override
     public boolean onNavigationItemSelected(MenuItem item) {
@@ -245,5 +233,118 @@ public class MainActivity extends AppCompatActivity
         } catch (JSONException e) {
             e.printStackTrace();
         }
+    }
+
+   public void cargaMenu(){
+
+       Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+       setSupportActionBar(toolbar);
+
+        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
+            fab.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
+                            .setAction("Action", null).show();
+                }
+            });
+
+            DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
+            ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
+                    this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
+            drawer.addDrawerListener(toggle);
+            toggle.syncState();
+
+            NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
+            navigationView.setNavigationItemSelectedListener(this);
+
+   }
+
+   public boolean callServer(){
+
+       RequestQueue queue = VolleySingleton.getInstance().getmRequestQueue();
+
+       //Llamada al servidor para obtener links y eventos
+       JsonObjectRequest request = new JsonObjectRequest(Request.Method.GET, url, null,
+               new Response.Listener<JSONObject>() {
+                   @Override
+                   public void onResponse(JSONObject response) {
+                       // Check the length of our response (to see if the user has any repos)
+                       if (response.length() > 0) {
+                           // The user does have repos, so let's loop through them all.
+                           for (int i = 0; i < response.length(); i++) {
+                               try {
+                                   JSONArray links = response.getJSONArray("links");
+
+                                   for (int j = 0; j < links.length(); j++) {
+                                       JSONObject r = links.getJSONObject(j);
+                                       switch (j){
+                                           case 0:
+                                               href_users = r.getString("href");
+                                               break;
+                                           case 1:
+                                               href_eventos = r.getString("href");
+                                               break;
+                                       }
+                                   }
+                               } catch (JSONException e) {
+                                   // If there is an error then output this to the logs.
+                                   Toast toast2 =
+                                           Toast.makeText(getApplicationContext(),
+                                                   "No se han importado datos", Toast.LENGTH_SHORT);
+                                   toast2.show();
+                               }
+                           }
+                       } else {
+                           // The user didn't have any repos.
+                           Toast toast2 =
+                                   Toast.makeText(getApplicationContext(),
+                                           "No se han importado datos", Toast.LENGTH_SHORT);
+                           toast2.show();
+                       }
+                   }
+               },
+               new Response.ErrorListener() {
+                   @Override
+                   public void onErrorResponse(VolleyError error) {
+                       // If there a HTTP error then add a note to our repo list.
+                       Toast toast2 =
+                               Toast.makeText(getApplicationContext(),
+                                       "Error en la conexión", Toast.LENGTH_SHORT);
+                       toast2.show();
+
+                       Log.e("Volley", error.toString());
+                   }
+               }
+       );
+       // Add the request to the RequestQueue.
+       queue.add(request);
+
+       if(href_users.isEmpty()){
+
+           return false;
+
+       }else{
+           return true;
+       }
+
+
+   }
+
+    public boolean isUserRegisterd(){
+
+        SharedPreferences prefs =
+                getSharedPreferences("UserLogin", Context.MODE_PRIVATE);
+
+        String userName = prefs.getString("userName", "default");
+
+        if (userName.equals("default") ){
+
+            return false;
+        }else{
+
+            return false;
+        }
+
     }
 }
