@@ -1,17 +1,15 @@
 package com.caniplay.caniplay;
 
-import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
-import android.location.Location;
+
+import android.location.LocationManager;
 import android.os.Bundle;
-import android.os.Handler;
-import android.support.annotation.Nullable;
+
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
-import android.support.v4.app.ActivityCompat;
+
 import android.util.Log;
 import android.view.View;
 import android.support.design.widget.NavigationView;
@@ -30,9 +28,7 @@ import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.location.LocationServices;
+
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -47,56 +43,209 @@ import static com.caniplay.caniplay.StatusConnection.checkConnection;
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener  {
 
-private static  int SPLASH_TIME_OUT = 4000;
+
     //private String url = "http://10.0.2.2:8080/api/v1";
-    private String url = "http://10.0.2.2:8080/api/v1";
+    private String url = "https://admerest.herokuapp.com/api/v1";
     private String href_users = "";
     private String href_eventos = "";
-    public Boolean userExist = false;
-    public Boolean isLogged = false;
-
-    private static final String LOGTAG = "android-localizacion";
-
-    private static final int PETICION_PERMISO_LOCALIZACION = 101;
-
-    private GoogleApiClient apiClient;
+    protected  Boolean userExist = false;
+    protected Boolean isLogged = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-
-        new Handler().postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                Intent home = new Intent(getApplicationContext(), HomeActivity.class);
-                startActivity(home); // Cambio de aplicación
-            }
-        },SPLASH_TIME_OUT);
-
         setContentView(R.layout.activity_main);
-        cargaMenu();
 
-        if (checkConnection()) {
-            if(callServer()){
-                userExist = isUserRegisterd();
-                if (userExist) {
-                    //loginUser();
+        cargaMenu();
+       if (checkConnection()) {
+
+          RequestQueue queue = VolleySingleton.getInstance().getmRequestQueue();
+
+           //Llamada al servidor para obtener links y eventos
+           JsonObjectRequest request = new JsonObjectRequest(Request.Method.GET, url, null,
+                   new Response.Listener<JSONObject>() {
+                       @Override
+                       public void onResponse(JSONObject response) {
+                           // Check the length of our response (to see if the user has any repos)
+                           if (response.length() > 0) {
+                               // The user does have repos, so let's loop through them all.
+                               for (int i = 0; i < response.length(); i++) {
+                                   try {
+                                       JSONArray links = response.getJSONArray("links");
+
+                                       for (int j = 0; j < links.length(); j++) {
+                                           JSONObject r = links.getJSONObject(j);
+                                           switch (j){
+                                               case 0:
+                                                   href_users = r.getString("href");
+                                                   break;
+                                               case 1:
+                                                   href_eventos = r.getString("href");
+                                                   break;
+                                           }
+                                       }
+
+                                   } catch (JSONException e) {
+                                       // If there is an error then output this to the logs.
+                                       Toast toast2 =
+                                               Toast.makeText(getApplicationContext(),
+                                                       "No se han importado datos", Toast.LENGTH_SHORT);
+                                       toast2.show();
+                                   }
+                               }
+                           } else {
+                               // The user didn't have any repos.
+                               Toast toast2 =
+                                       Toast.makeText(getApplicationContext(),
+                                               "No se han importado datos", Toast.LENGTH_SHORT);
+                               toast2.show();
+                           }
+
+
+                           if(!href_users.isEmpty() && !href_eventos.isEmpty()){
+
+
+
+                               if(userPreviouslyLogged()){
+
+                                   automaticLoginUser();
+                                   //loginUser(href_login);
+                                   //cambioCabeceraMenu();
+                                   if(isGPSEnabled()){
+
+                                       //Get Location from GPS for send to Server in Event url
+                                   }else{
+
+                                       Toast toast2 =
+                                               Toast.makeText(getApplicationContext(),
+                                                       "Para una mejor experiencia de ususario activa el GPS", Toast.LENGTH_LONG);
+                                       toast2.show();
+
+                                       if(isNetworkProviderEnabled()){
+
+                                           //Get Location from Network for send to Server in Event url
+                                       }
+
+                                   }
+
+                                   //callServerForEvents(href_eventos,location);
+                                   //callServerForUserActions(href_users);
+
+
+                               } else{
+
+
+                                   if(isGPSEnabled()){
+
+                                       //Get Location from GPS for send to Server in Event url
+                                   }else{
+
+
+                                       Toast toast2 =
+                                               Toast.makeText(getApplicationContext(),
+                                                       "Para una mejor experiencia de ususario activa el GPS", Toast.LENGTH_LONG);
+                                       toast2.show();
+
+                                       if(isNetworkProviderEnabled()){
+
+                                           //Get Location from Network for send to Server in Event url
+                                       }
+                                   }
+
+                                   //El usuario no estaba logueado y por lo tanto no se loguea pero se le muestran los eventos
+                                   //callServerForEvents(href_eventos);
+                               }
+
+                           }else{
+                               //Error en la llamada al servidor no tenemos las urls necesarias para mostrar mas info
+                               // Se muestra pantalla de error
+                               Intent LoadScreenError = new Intent(getApplicationContext(), ErrorActivity.class);
+                               startActivity(LoadScreenError);
+                           }
+                       }
+                   },
+                   new Response.ErrorListener() {
+                       @Override
+                       public void onErrorResponse(VolleyError error) {
+                           // If there a HTTP error then add a note to our repo list.
+                           Toast toast2 =
+                                   Toast.makeText(getApplicationContext(),
+                                           error.toString(), Toast.LENGTH_SHORT);
+                           toast2.show();
+
+                           Log.e("Volley", error.toString());
+                       }
+                   }
+           );
+           // Add the request to the RequestQueue.
+           queue.add(request);
+
+
+          /* if(!href_users.isEmpty() && !href_eventos.isEmpty()){
+
+
+
+                if(userPreviouslyLogged()){
+
+                    automaticLoginUser();
+                    //loginUser(href_login);
                     //cambioCabeceraMenu();
-                    //callServerForEvents(href_eventos);
+                    if(isGPSEnabled()){
+
+                        //Get Location from GPS for send to Server in Event url
+                    }else{
+
+                        Toast toast2 =
+                                Toast.makeText(getApplicationContext(),
+                                        "Para una mejor experiencia de ususario activa el GPS", Toast.LENGTH_LONG);
+                        toast2.show();
+
+                        if(isNetworkProviderEnabled()){
+
+                            //Get Location from Network for send to Server in Event url
+                        }
+
+                    }
+
+                    //callServerForEvents(href_eventos,location);
                     //callServerForUserActions(href_users);
-                }else{
+
+
+                } else{
+
+
+                    if(isGPSEnabled()){
+
+                        //Get Location from GPS for send to Server in Event url
+                    }else{
+
+
+                        Toast toast2 =
+                                Toast.makeText(getApplicationContext(),
+                                        "Para una mejor experiencia de ususario activa el GPS", Toast.LENGTH_LONG);
+                        toast2.show();
+
+                        if(isNetworkProviderEnabled()){
+
+                            //Get Location from Network for send to Server in Event url
+                        }
+                    }
+
+                    //El usuario no estaba logueado y por lo tanto no se loguea pero se le muestran los eventos
                     //callServerForEvents(href_eventos);
                 }
 
             }else{
+                //Error en la llamada al servidor no tenemos las urls necesarias para mostrar mas info
+                // Se muestra pantalla de error
                 Intent LoadScreenError = new Intent(getApplicationContext(), ErrorActivity.class);
-                startActivity(LoadScreenError); // Cambio de aplicación
-
-            }
+                startActivity(LoadScreenError);
+            }*/
         }else{
+           //Error en la conexión a internet
             Intent LoadScreenError = new Intent(getApplicationContext(), ErrorActivity.class);
-            startActivity(LoadScreenError); // Cambio de aplicación
+            startActivity(LoadScreenError);
 
 
         }
@@ -135,9 +284,9 @@ private static  int SPLASH_TIME_OUT = 4000;
     }
 
 
-    public void login(View view){
+    public void loginOrRegister(View view){
 
-        if(!userExist){
+        if(!isLogged){
             Intent newLogin = new Intent(getApplicationContext(), LoginActivity.class);
             startActivity(newLogin); // Cambio de aplicación
 
@@ -176,7 +325,6 @@ private static  int SPLASH_TIME_OUT = 4000;
         drawer.closeDrawer(GravityCompat.START);
         return true;
     }
-
 
 
     private void envioDatosServidor(final User usuario){
@@ -240,15 +388,16 @@ private static  int SPLASH_TIME_OUT = 4000;
        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
        setSupportActionBar(toolbar);
 
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-            fab.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                            .setAction("Action", null).show();
-                }
-            });
-
+       if(isLogged) {
+           FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
+           fab.setOnClickListener(new View.OnClickListener() {
+               @Override
+               public void onClick(View view) {
+                   Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
+                           .setAction("Action", null).show();
+               }
+           });
+       }
             DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
             ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
                     this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
@@ -260,76 +409,7 @@ private static  int SPLASH_TIME_OUT = 4000;
 
    }
 
-   public boolean callServer(){
 
-       RequestQueue queue = VolleySingleton.getInstance().getmRequestQueue();
-
-       //Llamada al servidor para obtener links y eventos
-       JsonObjectRequest request = new JsonObjectRequest(Request.Method.GET, url, null,
-               new Response.Listener<JSONObject>() {
-                   @Override
-                   public void onResponse(JSONObject response) {
-                       // Check the length of our response (to see if the user has any repos)
-                       if (response.length() > 0) {
-                           // The user does have repos, so let's loop through them all.
-                           for (int i = 0; i < response.length(); i++) {
-                               try {
-                                   JSONArray links = response.getJSONArray("links");
-
-                                   for (int j = 0; j < links.length(); j++) {
-                                       JSONObject r = links.getJSONObject(j);
-                                       switch (j){
-                                           case 0:
-                                               href_users = r.getString("href");
-                                               break;
-                                           case 1:
-                                               href_eventos = r.getString("href");
-                                               break;
-                                       }
-                                   }
-                               } catch (JSONException e) {
-                                   // If there is an error then output this to the logs.
-                                   Toast toast2 =
-                                           Toast.makeText(getApplicationContext(),
-                                                   "No se han importado datos", Toast.LENGTH_SHORT);
-                                   toast2.show();
-                               }
-                           }
-                       } else {
-                           // The user didn't have any repos.
-                           Toast toast2 =
-                                   Toast.makeText(getApplicationContext(),
-                                           "No se han importado datos", Toast.LENGTH_SHORT);
-                           toast2.show();
-                       }
-                   }
-               },
-               new Response.ErrorListener() {
-                   @Override
-                   public void onErrorResponse(VolleyError error) {
-                       // If there a HTTP error then add a note to our repo list.
-                       Toast toast2 =
-                               Toast.makeText(getApplicationContext(),
-                                       "Error en la conexión", Toast.LENGTH_SHORT);
-                       toast2.show();
-
-                       Log.e("Volley", error.toString());
-                   }
-               }
-       );
-       // Add the request to the RequestQueue.
-       queue.add(request);
-
-       if(href_users.isEmpty()){
-
-           return false;
-
-       }else{
-           return true;
-       }
-
-
-   }
 
     public boolean isUserRegisterd(){
 
@@ -347,4 +427,83 @@ private static  int SPLASH_TIME_OUT = 4000;
         }
 
     }
+
+    public boolean checkData(){
+
+        if(href_users.isEmpty()){
+
+            return false;
+
+        }else{
+            return true;
+        }
+    }
+
+    public  boolean userPreviouslyLogged(){
+
+        //En sharedpreferences vamos a dejar guardado si el usuario tiene la sesión iniciada o no
+        // por lo tanto vamos a recuperar el valor de la ultima sesion del usuario y hacerla efectiva si estaba logeado
+
+        SharedPreferences prefs =
+                getSharedPreferences("UserLogin", Context.MODE_PRIVATE);
+
+        String userName = prefs.getString("logged", "off");
+
+        if (userName.equals("off") ){
+
+            return false;
+
+        }else{
+
+            return true;
+        }
+
+    }
+
+    public void automaticLoginUser(){
+
+        SharedPreferences prefs = getSharedPreferences("UserLogin", Context.MODE_PRIVATE);
+
+        String userName = prefs.getString("userName", "default");
+        String fullName = prefs.getString("fullName", "default");
+        String password = prefs.getString("password", "default");
+        String email = prefs.getString("email", "default");
+
+        if (!userName.equals("default") && !fullName.equals("default") && !password.equals("default") && !email.equals("default") ){
+
+        //Si hay datos de usuario lo logueamos y marcamos en la shared que está logueado y actualizamos la variable global
+
+            //llamada al servidor para loguear??
+            isLogged = true;
+
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putString("logged", "on");
+            editor.commit();
+
+            // Crear un usuario con la clase para posibles funcionalidades??
+
+        }else{
+            //Se muestra mensaje de error
+
+            Toast toast2 =
+                    Toast.makeText(getApplicationContext(),
+                            "Error al intentar loguearte", Toast.LENGTH_SHORT);
+            toast2.show();
+        }
+    }
+
+   public boolean isGPSEnabled(){
+
+       LocationManager mlocManager = (LocationManager) MyApplication.getAppContext().getSystemService(Context.LOCATION_SERVICE);;
+       return mlocManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
+
+   }
+
+   public boolean isNetworkProviderEnabled(){
+
+       LocationManager lm = (LocationManager) MyApplication.getAppContext().getSystemService(Context.LOCATION_SERVICE);
+       return lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+
+   }
+
 }
