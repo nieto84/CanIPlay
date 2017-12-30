@@ -13,15 +13,19 @@ public class MyApplication extends Application {
     private static Boolean isActive = false;
     private static String href_users ="";
     private static String href_eventos ="";
-    private static String url_root = "https://admerest.herokuapp.com/api/v1";
+    private static String url_root = "http://192.168.1.131:8443/api/v1";
     private static String href_self="";
     private static String href_groups="";
     private static String href_self_events="";
     private static String fullName="";
     private static String userName ="default";
-    private static double longitud= 41.38;
-    private static double latitud = 2.15;
-    private static int distance = 5000;
+    private static double longitudDefault= 40.1;
+    private static double latitudDefault = 24.1;
+    private static double longitud = 0;
+    private static double latitud = 0;
+    private static int distance;
+    private static int distanceDefault = 5000;
+    private static boolean isPreviouslyLogged = false;
 
 
     @Override
@@ -113,42 +117,46 @@ public class MyApplication extends Application {
 
     public static void setFullName (String b) {fullName = b;}
 
-
     public static void setLongitud (double b){
-
         longitud = b;
     }
 
     public static double getLongitud(){
         return longitud;
-
     }
 
 
     public static void setLatitud(double b){
+        latitud = b;}
 
-        latitud = b;
-
-
-    }
-
-    public static double getLatitud(){
-        return latitud;
-
-
-    }
+    public static double getLatitud(){return latitud;}
 
 
     public static void setDistance(int b){
-
         distance = b;
-
-
     }
 
-    public static int getDistance(){
-        return distance;
+    public static int getDistance(){return distance;}
 
 
+    public static void setLongitudDefault (double b){
+        longitudDefault = b;
     }
+
+    public static double getLongitudDefault(){
+        return longitudDefault;
+    }
+
+
+    public static void setLatitudDefault(double b){
+        latitudDefault = b;}
+
+    public static double getLatitudDefault(){return latitudDefault;}
+
+
+    public static void setDistanceDefault(int b){
+        distanceDefault = b;
+    }
+
+    public static int getDistanceDefault(){return distanceDefault;}
 }

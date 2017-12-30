@@ -24,6 +24,8 @@ public class VolleySingleton {
     private VolleySingleton() {
         mRequestQueue = Volley.newRequestQueue(MyApplication.getAppContext());
 
+
+
         imageLoader = new ImageLoader(mRequestQueue, new ImageLoader.ImageCache() {
 
             private LruCache<String, Bitmap> cache =

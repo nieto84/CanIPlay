@@ -35,12 +35,16 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.android.volley.AuthFailureError;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
+import com.caniplay.caniplay.presenter.LoginPresenter;
+import com.caniplay.caniplay.presenter.LoginPresenterImp;
+import com.caniplay.caniplay.presenter.MainPresenter;
+import com.caniplay.caniplay.presenter.MainPresenterImp;
+import com.caniplay.caniplay.ui.LoginView;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -57,13 +61,13 @@ import static android.Manifest.permission.READ_CONTACTS;
 /**
  * A login screen that offers login via email/password.
  */
-public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<Cursor> {
+public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<Cursor>, LoginView {
 
     /**
      * Id to identity READ_CONTACTS permission request.
      */
     private static final int REQUEST_READ_CONTACTS = 0;
-    private boolean created = false;
+
 
     /**
      * A dummy authentication store containing known user names and passwords.
@@ -83,20 +87,29 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
     private View mProgressView;
     private View mLoginFormView;
     private Button mEmailSignInButton;
+    private Button loginButton;
+    private LoginPresenter presenter;
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+
         setContentView(R.layout.activity_login);
+
+
+       presenter = new LoginPresenterImp(this);
+
         // Set up the login form.
         mEmailView = (AutoCompleteTextView) findViewById(R.id.email);
         populateAutoComplete();
 
         fullName = (EditText) findViewById(R.id.fullName);
         userName = (EditText) findViewById(R.id.userName);
+        loginButton = (Button) findViewById(R.id.loginButton);
         mPasswordView = (EditText) findViewById(R.id.password);
-        mPasswordView.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+       /* mPasswordView.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             @Override
             public boolean onEditorAction(TextView textView, int id, KeyEvent keyEvent) {
                 if (id == EditorInfo.IME_ACTION_DONE || id == EditorInfo.IME_NULL) {
@@ -105,30 +118,24 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
                 }
                 return false;
             }
-        });
+        });*/
 
         mEmailSignInButton = (Button) findViewById(R.id.email_sign_in_button);
         mEmailSignInButton.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View view) {
-                attemptLogin();
+                attemptLogin("Register");
             }
         });
 
+        loginButton.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                attemptLogin("Login");
+            }
+        });
         mLoginFormView = findViewById(R.id.login_form);
         mProgressView = findViewById(R.id.login_progress);
-
-
-        if(MyApplication.getIsLogged()){
-
-            mEmailSignInButton.setText("Login");
-        }else{
-
-            mEmailSignInButton.setText("Registrar");
-
-        }
-
-
 
 
     }
@@ -182,7 +189,7 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
      * If there are form errors (invalid email, missing fields, etc.), the
      * errors are presented and no actual login attempt is made.
      */
-    private void attemptLogin() {
+    private void attemptLogin(String mode) {
         if (mAuthTask != null) {
             return;
         }
@@ -238,17 +245,15 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
             // Show a progress spinner, and kick off a background task to
             // perform the user login attempt.
             showProgress(true);
-            User u = new User(tfullName, tuserName, password);
+            User u = new User(password, tuserName,tfullName, email);
 
-            if(mEmailSignInButton.getText().equals("Registrar")){
+            if(mode.equals("Registrar")){
 
-                envioDatosServidor(u);
+                getPresenter().userRegistration(u);
 
+            }else if(mode.equals("Login")){
 
-
-            }else if(mEmailSignInButton.getText().equals("Login")){
-
-                loginServer(u);
+                getPresenter().loginUser(u);
 
                 //Si el usuario se crea borramos los datos los campos y lanzamos activity perfil y nos logueamos
 
@@ -360,184 +365,6 @@ public class LoginActivity extends AppCompatActivity implements LoaderCallbacks<
         int IS_PRIMARY = 1;
     }
 
-
-    private void envioDatosServidor(final User usuario){
-
-        try {
-
-            RequestQueue requestQueue = VolleySingleton.getInstance().getmRequestQueue();
-            //RequestQueue requestQueue = Volley.newRequestQueue(this);
-
-            JSONObject jsonBody = new JSONObject();
-            jsonBody.put("fullName", usuario.getFullName()); //Add the data you'd like to send to the server.
-            jsonBody.put("userName", usuario.getUserName());
-            jsonBody.put("password", usuario.getPassword());
-
-
-            final String mRequestBody = jsonBody.toString();
-
-            JsonObjectRequest stringRequest = new JsonObjectRequest(Request.Method.POST,  MyApplication.getHref_users(), jsonBody, new Response.Listener<JSONObject>() {
-                @Override
-                public void onResponse(JSONObject response) {
-                    // Log.i("LOG_VOLLEY", response);
-                    Toast toast2 =
-                            Toast.makeText(getApplicationContext(),
-                                    "Usuario creado correctamente", Toast.LENGTH_SHORT);
-                    toast2.show();
-
-                    created = true;
-
-                    // Si el usuario se crea correctamente automaticamente nos logueamos
-
-                    if(created){
-
-                        //guardar shared preferences
-
-                        SharedPreferences prefs =
-                                getSharedPreferences("UserLogin", Context.MODE_PRIVATE);
-
-                        SharedPreferences.Editor editor = prefs.edit();
-                        editor.putString("userName", usuario.getUserName());
-                        editor.putString("fullName", usuario.getFullName());
-                        editor.putString("email", usuario.getEmail());
-                        editor.putString("password", usuario.getPassword());
-                        editor.putString("logged","on");
-                        editor.commit();
-
-                        loginServer(usuario);
-
-                    }
-
-                }
-            }, new Response.ErrorListener() {
-                @Override
-                public void onErrorResponse(VolleyError error) {
-
-                    Log.e("LOG_VOLLEY", error.toString());
-                    Toast toast2 =
-                            Toast.makeText(getApplicationContext(),
-                                    "Error creando usuario", Toast.LENGTH_SHORT);
-                    toast2.show();
-
-                    Toast toast3 =
-                            Toast.makeText(getApplicationContext(),
-                                    error.toString(), Toast.LENGTH_SHORT);
-                    toast3.show();
-                }
-            }) {
-                @Override
-                public String getBodyContentType() {
-                    return "application/json; charset=utf-8";
-                }
-
-
-                @Override
-                public byte[] getBody() {
-                    try {
-                        return mRequestBody == null ? null : mRequestBody.getBytes("utf-8");
-                    } catch (UnsupportedEncodingException uee) {
-                        //VolleyLog.wtf("Unsupported Encoding while trying to get the bytes of %s using %s", mRequestBody, "utf-8");
-                        return null;
-                    }
-                }
-            };
-
-            requestQueue.add(stringRequest);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-    }
-
-public void loginServer(final User usuario){
-
-    RequestQueue queue = VolleySingleton.getInstance().getmRequestQueue();
-
-    AuthRequest request = new AuthRequest(Request.Method.GET, MyApplication.getHref_users(), null, new Response.Listener<JSONObject>() {
-
-
-        @Override
-        public void onResponse(JSONObject response) {
-            // Check the length of our response (to see if the user has any repos)
-            if (response.length() > 0) {
-
-
-                for (int i = 0; i < response.length(); i++) {
-                    try {
-                        JSONArray links = response.getJSONArray("links");
-
-                        for (int j = 0; j < links.length(); j++) {
-                            JSONObject r = links.getJSONObject(j);
-                            switch (j) {
-                                case 0:
-                                    MyApplication.setHref_self(r.getString("href"));
-                                    break;
-                                case 1:
-                                    MyApplication.setHref_groups(r.getString("href"));
-                                    break;
-                                case 2:
-                                    MyApplication.setHref_self_events(r.getString("href"));
-                                    break;
-                            }
-                        }
-
-                        MyApplication.setFullName(response.getString("fullName"));
-                        MyApplication.setUserName(response.getString("userName"));
-
-                    } catch (JSONException e) {
-                        // If there is an error then output this to the logs.
-                        Log.e("Volley", "Invalid JSON Object.");
-                    }
-                }
-
-
-                MyApplication.setIsLogged(true);
-
-                //borrar datos activity
-                mEmailView.setText("");
-                mPasswordView.setText("");
-                fullName.setText("");
-                userName.setText("");
-
-                //lanzamos el perefil
-                Intent profile = new Intent(getApplicationContext(), Profile.class);
-                startActivity(profile); // Cambio de aplicación
-            } else {
-                // The user didn't have any repos.
-                // listText("No repos found.");
-                Log.e("Volley", "No repos found");
-            }
-        }
-    },
-            new Response.ErrorListener() {
-                @Override
-                public void onErrorResponse(VolleyError error) {
-                    // If there a HTTP error then add a note to our repo list.
-
-                    Log.e("Volley", error.toString());
-                }
-
-            }){
-
-
-        @Override
-        Map<String, String> createBasicAuthHeader(String username, String password) {
-            Map<String, String> headerMap = new HashMap<String, String>();
-
-            String credentials = usuario.getUserName() + ":" + usuario.getPassword();
-            String encodedCredentials = Base64.encodeToString(credentials.getBytes(), Base64.NO_WRAP);
-            headerMap.put("Authorization", "Basic " + encodedCredentials);
-            headerMap.put("userName", usuario.getUserName());
-
-            return headerMap;
-        }
-
-    };
-
-    queue.add(request);
-
-}
-
-
     /*
      * Represents an asynchronous login/registration task used to authenticate
      * the user.
@@ -593,6 +420,32 @@ public void loginServer(final User usuario){
             mAuthTask = null;
             showProgress(false);
         }
+    }
+
+    private LoginPresenter getPresenter(){
+
+        return this.presenter;
+    }
+
+
+    public Context getContext(){
+
+        return this;
+    }
+
+    public void cleanText(){
+
+        mEmailView.setText("");
+        mPasswordView.setText("");
+        fullName.setText("");
+        userName.setText("");
+
+    }
+
+    @Override
+    public void onBackPressed() {
+        Intent main = new Intent(this, MainActivity.class);
+        startActivity(main);
     }
 }
 

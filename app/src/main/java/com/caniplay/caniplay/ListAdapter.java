@@ -9,6 +9,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created by A on 13/12/2017.
@@ -17,7 +18,7 @@ import java.util.ArrayList;
 public class ListAdapter extends RecyclerView.Adapter<ListAdapter.ViewHolder> {
 
     private Context mContext;
-    private ArrayList<Evento> mDataset;
+    private List<Evento> mDataset;
 
     // Provide a reference to the views for each data item
     // Complex data items may need more than one view per item, and
@@ -34,7 +35,7 @@ public class ListAdapter extends RecyclerView.Adapter<ListAdapter.ViewHolder> {
     }
 
     // Provide a suitable constructor (depends on the kind of dataset)
-    public ListAdapter(Context context, ArrayList<Evento> myDataset) {
+    public ListAdapter(Context context, List<Evento> myDataset) {
         mDataset = myDataset;
         mContext = context;
     }

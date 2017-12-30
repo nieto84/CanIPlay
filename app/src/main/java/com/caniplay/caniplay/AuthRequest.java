@@ -9,6 +9,7 @@ import com.android.volley.toolbox.JsonObjectRequest;
 import org.json.JSONObject;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -17,10 +18,20 @@ import java.util.Map;
 
 public class AuthRequest extends JsonObjectRequest {
 
+    private   Map<String, String> headers;
+
     public AuthRequest(int method, String url, JSONObject jsonRequest,
                        Response.Listener<JSONObject> listener,
                        Response.ErrorListener errorListener) {
         super(method, url, jsonRequest, listener, errorListener);
+    }
+
+    public AuthRequest(int method, String url, Map<String, String> headers, JSONObject jsonRequest,
+                       Response.Listener<JSONObject> listener,
+                       Response.ErrorListener errorListener) {
+        super(method, url, jsonRequest, listener, errorListener);
+
+        this.headers=headers;
     }
 
     public AuthRequest(String url, JSONObject jsonRequest,
@@ -31,7 +42,11 @@ public class AuthRequest extends JsonObjectRequest {
 
     @Override
     public Map<String, String> getHeaders() throws AuthFailureError {
-        return createBasicAuthHeader("francesc3000", "abc123");
+        Map<String, String> headerMap;
+        headerMap = createBasicAuthHeader("francesc3000", "abc123");
+        headerMap.putAll(this.headers);
+
+        return headerMap;
     }
 
     Map<String, String> createBasicAuthHeader(String username, String password) {
